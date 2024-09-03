@@ -1,0 +1,68 @@
+version: '3.0'
+
+services:
+
+  # Migration service for inventory
+  inventory-migrations:
+    container_name: inventory-migrations
+    build:
+      context: ./inventory
+      dockerfile: Dockerfile
+    command: sh -c "npm run create-db && npm run migrate up" 
+          
+    depends_on:
+      - postgres
+
+  inventory:
+    container_name: inventory
+    build:
+      context: ./inventory
+      dockerfile: Dockerfile
+     
+    env_file:
+      - ./inventory/.production.env 
+
+    ports:
+      - 5001:5001      
+      
+    depends_on:
+      - postgres
+      - rabbitmq  
+      - inventory-migrations
+      
+    restart: always
+
+  history:
+    container_name: history
+    build:
+      context: ./history
+      dockerfile: Dockerfile
+       
+    env_file:
+      - ./history/.production.env  
+    ports:
+      - 5000:5000  
+        
+    depends_on:
+      - rabbitmq
+      - postgres
+      - inventory-migrations
+    restart: always
+  
+  rabbitmq:
+    container_name: rabbitmq
+    image: "rabbitmq:3-management"
+    ports:
+      - "15672:15672" # Management UI
+      - "5672:5672"   # RabbitMQ Port
+    restart: always
+  postgres:
+    container_name: postgres
+    image: postgres:16.3
+    env_file:
+      - ./inventory/.production.env 
+    ports:
+      - 5432:5432
+    volumes:
+      - /path/on/host:/var/lib/postgresql/data
+    restart: always

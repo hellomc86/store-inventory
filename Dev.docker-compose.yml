@@ -1,0 +1,79 @@
+version: '3.0'
+
+services:
+
+  # Migration service for inventory
+  inventory-migrations:
+    container_name: inventory-migrations
+    build:
+      context: ./inventory
+      dockerfile: Dockerfile
+    command: sh -c "npm run create-db && npm run migrate up" 
+    volumes:
+      - ./inventory:/app
+      
+    depends_on:
+      - postgres
+
+  inventory:
+    container_name: inventory
+    build:
+      context: ./inventory
+      dockerfile: Dockerfile
+   
+    volumes:
+      - ./inventory:/app
+    env_file:
+      - ./inventory/.development.env  # Include the .development.env file
+
+    ports:
+      - 5001:5001      
+    command: npm run start:dev      
+    depends_on:
+      - postgres
+      - rabbitmq  
+      - inventory-migrations
+      
+    restart: always
+
+  history:
+    container_name: history
+    build:
+      context: ./history
+      dockerfile: Dockerfile
+       
+    env_file:
+      - ./history/.development.env  # Include the .development.env file
+    volumes:
+      - ./history:/app      
+    ports:
+      - 5000:5000  
+    command: npm run start:dev
+    
+    depends_on:
+      - rabbitmq
+      - postgres
+      - inventory-migrations
+    restart: always
+  
+  rabbitmq:
+    container_name: rabbitmq
+    image: "rabbitmq:3-management"
+    ports:
+      - "15672:15672" # Management UI
+      - "5672:5672"   # RabbitMQ Port
+  postgres:
+    container_name: postgres
+    image: postgres:16.3
+    env_file:
+      - .development.env
+    environment:
+      PG_DATA: /var/lib/postgresql/data 
+    ports:
+      - 5432:5432
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: always
+
+volumes:
+  pgdata:
